@@ -41,7 +41,9 @@ struct RawData {
     pub pay_period: Option<String>,
     pub demand_amount: Option<serde_json::Value>,
     pub atty_contact_date: Option<String>,
-    pub violation_narrative: Option<String>,
+    // Fields for this template LMB 204
+    pub custom_sentence1: Option<String>, 
+    pub custom_sentence2: Option<String>,
 }
 
 type SharedState = Arc<DashMap<String, RawData>>;
@@ -60,17 +62,17 @@ async fn main() {
         .with_state(state);
 
     //Local Setup
-    // let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    // println!("Server running at http://{}", addr);
-    // let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    // axum::serve(listener, app).await.unwrap();
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    println!("Server running at http://{}", addr);
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 
     //Deploy
-    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr = format!("0.0.0.0:{}", port);
-    println!("Server listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    // let addr = format!("0.0.0.0:{}", port);
+    // println!("Server listening on {}", addr);
+    // let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    // axum::serve(listener, app).await.unwrap();
 }
 
 async fn clear_session_handler(
@@ -184,7 +186,8 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
         "lastname": last_name,
         "company": data.company,
         "today_date": today_date_str,
-        "violation_narrative": data.violation_narrative.as_deref().unwrap_or(""),
+        "custom_sentence1": data.custom_sentence1.as_deref().unwrap_or(""),
+        "custom_sentence2": data.custom_sentence2.as_deref().unwrap_or(""),
 
         "pronoun": pronoun,
         "possessive": possessive,
@@ -260,7 +263,9 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
             ChatCompletionRequestSystemMessageArgs::default()
                 .content(format!("{} Output a JSON object.
                 
-                DYNAMIC NARRATIVE: Generate a 'violation_narrative' sentence. Example: 'However, since the past month, {{title}} {{lastname}} has been denied {{possessive}} meal breaks 1 time per week and all rest breaks per week in violation of California law'. Another example would be if you manage to determine a start date and end date, let's say that the violation has been happening from September 2025 to November 2025, it should say: 'However, from September 2025 to November 2025, {{title}} {{lastname}} has been denied {{possessive}} meal breaks 1 time per week and all rest breaks per week in violation of California law'. In case the gender is non-binary, change the {{title}} for Mx.'
+                CUSTOM_SENTENCE1: Based on the reason, if you determine that breaks were denied every single shift, draft a sentence like this: '{{title}} {{lastname}} was denied {{possessive}} breaks during each of {{possessive}} shifts'. If you determine that break denial did not happen every day but specific shifts or, draft a sentence like: '{{title}} {{lastname}} was denied {{possessive}} breaks on multiple shifts'. Use placeholders {{title}}, {{lastname}}, and {{possessive}}. Do NOT include actual numbers here. If gender is non-binary, use 'Mx.' as the title.
+
+                CUSTOM_SENTENCE2: Determine which breaks were denied. Return 'rest and meal breaks in violation of California Law' if both were denied, 'meal breaks in violation of California Law' if only meal, or 'rest breaks in violation of California Law' if only rest.
 
                 TIMEFRAME CALCULATION: Carefully calculate 'total_weeks_violated' based on the dates provided (e.g., 'Sept 2024 to Nov 2024' is ~13 weeks).
 
@@ -268,7 +273,7 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
                 For atty_contact_date: Format as YYYY-MM-DD.
                 For pay_period: Use 'weekly' or 'biweekly'.
                 
-                Keys: full_name, gender, company, working_hours, pay_rate, working_days_per_week, total_weeks_violated, meal_violations_per_week, rest_violations_per_week, pay_period, demand_amount, atty_contact_date, violation_narrative.", context_prompt))
+                Keys: full_name, gender, company, working_hours, pay_rate, working_days_per_week, total_weeks_violated, meal_violations_per_week, rest_violations_per_week, pay_period, demand_amount, atty_contact_date, custom_sentence1, custom_sentence2.", context_prompt))
                 .build().unwrap().into(),
             ChatCompletionRequestUserMessageArgs::default()
                 .content(input).build().unwrap().into(),
