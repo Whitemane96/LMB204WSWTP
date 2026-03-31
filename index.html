@@ -213,7 +213,7 @@
 
 <div class="app-container">
     <header>
-        <h1>Lunch Meal Breaks + 204 + Wage Statements </h1>
+        <h1>Lunch Meal Breaks + 204 + Wage Statements + Waiting Time Penalties</h1>
         <div id="status-indicator" style="font-size: 0.8rem; color: var(--text-muted);">Ready to process</div>
     </header>
 
@@ -302,6 +302,11 @@
         const mShifts = weeks * (data.meal_violations_per_week || 0);
         const rShifts = weeks * (data.rest_violations_per_week || 0);
 
+        // --- NEW: Waiting Time Penalty Calculations ---
+        const penaltyDays = Math.min(data.penalty_days || 0, 30); // Capped at 30 days per CA law
+        const dailyRate = rate * data.working_hours; 
+        const totalWtp = penaltyDays * dailyRate;
+
         const mTotal = mShifts * rate;
         const rTotal = rShifts * rate;
 
@@ -312,6 +317,8 @@
         const pSum = mTotal + rTotal + vTotal;
         const vPercent = pSum * 0.25;
         const wTotal = nViolations > 0 ? 50 + ((nViolations - 1) * 100) : 0;
+
+        const finalTotal = mTotal + rTotal + vTotal + vPercent + wTotal + totalWtp;
 
         const summaryHtml = `
             <div class="summary-box">
@@ -328,11 +335,13 @@
                 <b>Rest Breaks Violations</b>: ${rShifts} shifts = $${rTotal.toFixed(2)}
                 <b>210 Penalties</b>: ${nViolations} violations = $${vTotal.toFixed(2)}
                 <b>210 Penalties 25% of $${pSum.toFixed(2)}</b> = $${vPercent.toFixed(2)}
+                <b>Waiting Time Penalties</b>: ${penaltyDays} days at $${dailyRate.toFixed(2)}/day = $${totalWtp.toFixed(2)}
                 <b>Wage Statements</b>: ${nViolations} violations = $${wTotal.toFixed(2)}
-                <b>Total = $${(mTotal + rTotal + vTotal + vPercent + wTotal).toFixed(2)}</b>
+                <b>Total = $${finalTotal.toFixed(2)}</b>
                 --------------------------------------------------
                 <b>Demand Amount</b>: ${data.demand_amount || "Not found"}
                 <b>Atty Contact Date</b>: ${data.atty_contact_date || "Not found"}
+                --------------------------------------------------
             </div>
             <div class="action-group">
                 <button class="download-btn" onclick="generateDoc()">Download Document</button><br>

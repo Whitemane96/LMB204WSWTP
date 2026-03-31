@@ -22,6 +22,7 @@ use handlebars::Handlebars;
 use dashmap::DashMap;
 use uuid::Uuid;
 use chrono::{NaiveDate, Utc, FixedOffset};
+use serde::de::{self, Deserializer};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct RawData {
@@ -41,12 +42,25 @@ struct RawData {
     pub pay_period: Option<String>,
     pub demand_amount: Option<serde_json::Value>,
     pub atty_contact_date: Option<String>,
-    // Fields for this template LMB 204
     pub custom_sentence1: Option<String>, 
     pub custom_sentence2: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_number_from_string")]
+    pub penalty_days: Option<u32>
 }
 
 type SharedState = Arc<DashMap<String, RawData>>;
+
+fn deserialize_number_from_string<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let v: serde_json::Value = Deserialize::deserialize(deserializer)?;
+    match v {
+        serde_json::Value::Number(n) => Ok(n.as_u64().map(|x| x as u32)),
+        serde_json::Value::String(s) => s.parse::<u32>().map(Some).map_err(de::Error::custom),
+        _ => Ok(None),
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -163,6 +177,9 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
     let rest_shifts = weeks * data.rest_violations_per_week;
     let meal_total = meal_shifts as f64 * data.pay_rate;
     let rest_total = rest_shifts as f64 * data.pay_rate;
+    let penalty_days = data.penalty_days.unwrap_or(0).min(30); // Capped at 30 days per CA law
+    let total_per_day = data.pay_rate * data.working_hours as f64;
+    let total_wtp = penalty_days as f64 * total_per_day;
 
     let num_violations = match data.pay_period.as_deref().map(|s| s.to_lowercase()).as_deref() {
         Some("weekly") => weeks,
@@ -178,7 +195,7 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
 
     let wage_total = if num_violations > 0 { 50.0 + ((num_violations - 1) as f64 * 100.0) } else { 0.0 };
     
-    let total_sum = penalties_sum + violations_percent + wage_total;
+    let total_sum = penalties_sum + violations_percent + wage_total + total_wtp;
 
     let hb_data = serde_json::json!({
         "title": title,
@@ -212,6 +229,10 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
 
         "atty_contact_date": formatted_atty_date,
         "demand_amount": demand_str,
+
+        "penalty_days": penalty_days,
+        "total_per_day": format!("{:.2}", total_per_day),
+        "total_wtp": format!("{:.2}", total_wtp),
     });
 
     let hb = Handlebars::new();
@@ -269,11 +290,13 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
 
                 TIMEFRAME CALCULATION: Carefully calculate 'total_weeks_violated' based on the dates provided (e.g., 'Sept 2024 to Nov 2024' is ~13 weeks).
 
+                Extract the number of days for 'penalty_days' (up to 30) after 'WTP' or 'Waiting Time Penalties' sentence in the file. Example: 'WTP: 10 days'. Return as an INTEGER (number), not a string. Example: 10.
+
                 For demand_amount: Return as string.
                 For atty_contact_date: Format as YYYY-MM-DD.
                 For pay_period: Use 'weekly' or 'biweekly'.
                 
-                Keys: full_name, gender, company, working_hours, pay_rate, working_days_per_week, total_weeks_violated, meal_violations_per_week, rest_violations_per_week, pay_period, demand_amount, atty_contact_date, custom_sentence1, custom_sentence2.", context_prompt))
+                Keys: full_name, gender, company, working_hours, pay_rate, working_days_per_week, total_weeks_violated, meal_violations_per_week, rest_violations_per_week, pay_period, demand_amount, atty_contact_date, custom_sentence1, custom_sentence2, penalty_days.", context_prompt))
                 .build().unwrap().into(),
             ChatCompletionRequestUserMessageArgs::default()
                 .content(input).build().unwrap().into(),
