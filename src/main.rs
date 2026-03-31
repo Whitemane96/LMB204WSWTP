@@ -76,17 +76,17 @@ async fn main() {
         .with_state(state);
 
     //Local Setup
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("Server running at http://{}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    // println!("Server running at http://{}", addr);
+    // let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    // axum::serve(listener, app).await.unwrap();
 
     //Deploy
-    // let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    // let addr = format!("0.0.0.0:{}", port);
-    // println!("Server listening on {}", addr);
-    // let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    // axum::serve(listener, app).await.unwrap();
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+    println!("Server listening on {}", addr);
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
 
 async fn clear_session_handler(
