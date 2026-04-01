@@ -295,6 +295,9 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
                 For demand_amount: Remove any symbols, keep only numbers with decimals if it has them.
                 For atty_contact_date: Format as YYYY-MM-DD.
                 For pay_period: Use 'weekly' or 'biweekly'.
+                For working_hours: Extract only the digits, strip all text. If the text says '8-hour shift', return 8 as a number.
+                For working_days_per_week: Extract only the digits, strip all text. Return as an integer.
+                For pay_rate: Extract only the digits and keep decimals, strip all text and symbols. Return as a float.
                 
                 Keys: full_name, gender, company, working_hours, pay_rate, working_days_per_week, total_weeks_violated, meal_violations_per_week, rest_violations_per_week, pay_period, demand_amount, atty_contact_date, custom_sentence1, custom_sentence2, penalty_days.", context_prompt))
                 .build().unwrap().into(),
