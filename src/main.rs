@@ -76,17 +76,17 @@ async fn main() {
         .with_state(state);
 
     //Local Setup
-    // let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    // println!("Server running at http://{}", addr);
-    // let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    // axum::serve(listener, app).await.unwrap();
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    println!("Server running at http://{}", addr);
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 
     //Deploy
-    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr = format!("0.0.0.0:{}", port);
-    println!("Server listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    // let addr = format!("0.0.0.0:{}", port);
+    // println!("Server listening on {}", addr);
+    // let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    // axum::serve(listener, app).await.unwrap();
 }
 
 async fn clear_session_handler(
@@ -136,6 +136,11 @@ async fn chat_handler(State(state): State<SharedState>, Json(req): Json<ChatRequ
     Json(updated)
 }
 
+// Helper function to round up to 2 decimal places
+    fn round_up(value: f64) -> f64 {
+        (value * 100.0).ceil() / 100.0
+    }
+
 async fn generate_handler(Json(data): Json<RawData>) -> Response {
     let first_name = data.full_name.split_whitespace().next().unwrap_or("").to_string();
     let last_name = data.full_name.split_whitespace().last().unwrap_or("").to_string();
@@ -175,11 +180,14 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
     let weeks = data.total_weeks_violated;
     let meal_shifts = weeks * data.meal_violations_per_week;
     let rest_shifts = weeks * data.rest_violations_per_week;
-    let meal_total = meal_shifts as f64 * data.pay_rate;
-    let rest_total = rest_shifts as f64 * data.pay_rate;
+
+    let meal_total = round_up(meal_shifts as f64 * data.pay_rate);
+    let rest_total = round_up(rest_shifts as f64 * data.pay_rate);
+
     let penalty_days = data.penalty_days.unwrap_or(0).min(30); // Capped at 30 days per CA law
-    let total_per_day = data.pay_rate * data.working_hours as f64;
-    let total_wtp = penalty_days as f64 * total_per_day;
+
+    let total_per_day = round_up(data.pay_rate * data.working_hours as f64);
+    let total_wtp = round_up(penalty_days as f64 * total_per_day);
 
     let num_violations = match data.pay_period.as_deref().map(|s| s.to_lowercase()).as_deref() {
         Some("weekly") => weeks,
@@ -187,15 +195,15 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
         _ => 0,
     };
 
-    let violations_total = if num_violations > 0 { 100.0 + ((num_violations - 1) as f64 * 200.0) } else { 0.0 };
+    let violations_total = round_up(if num_violations > 0 { 100.0 + ((num_violations - 1) as f64 * 200.0) } else { 0.0 });
 
-    let penalties_sum = meal_total + rest_total + violations_total;
+    let penalties_sum = meal_total + rest_total;
 
-    let violations_percent = penalties_sum * 0.25;
+    let violations_percent = round_up(penalties_sum * 0.25);
 
-    let wage_total = if num_violations > 0 { 50.0 + ((num_violations - 1) as f64 * 100.0) } else { 0.0 };
+    let wage_total = round_up(if num_violations > 0 { 50.0 + ((num_violations - 1) as f64 * 100.0) } else { 0.0 });
     
-    let total_sum = penalties_sum + violations_percent + wage_total + total_wtp;
+    let total_sum = round_up(penalties_sum + violations_percent + wage_total + total_wtp);
 
     let hb_data = serde_json::json!({
         "title": title,
@@ -283,8 +291,11 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
         .messages([
             ChatCompletionRequestSystemMessageArgs::default()
                 .content(format!("{} Output a JSON object.
+
+                Use right possessive articles based on gender, for male (his, he), female (her, she), and non-binary (their, they).
+                If gender is non-binary, use 'Mx.' as the title.
                 
-                CUSTOM_SENTENCE1: Based on the reason, if you determine that breaks were denied every single shift, draft a sentence like this: '{{title}} {{lastname}} was denied {{possessive}} breaks during each of {{possessive}} shifts'. If you determine that break denial did not happen every day but specific shifts or, draft a sentence like: '{{title}} {{lastname}} was denied {{possessive}} breaks on multiple shifts'. Use placeholders {{title}}, {{lastname}}, and {{possessive}}. Do NOT include actual numbers here. If gender is non-binary, use 'Mx.' as the title.
+                CUSTOM_SENTENCE1: Based on the reason, if you determine that breaks were denied every single shift, draft a sentence like this: '{{title}} {{lastname}} was denied {{possessive}} breaks during each of {{possessive}} shifts'. If you determine that break denial did not happen every day but specific shifts or, draft a sentence like: '{{title}} {{lastname}} was denied {{possessive}} breaks on multiple shifts'. Use placeholders {{title}}, {{lastname}}, and {{possessive}}. Do NOT include actual numbers here.
 
                 CUSTOM_SENTENCE2: Determine which breaks were denied. Return 'rest and meal breaks in violation of California Law' if both were denied, 'meal breaks in violation of California Law' if only meal, or 'rest breaks in violation of California Law' if only rest.
 

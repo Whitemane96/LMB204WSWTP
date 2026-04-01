@@ -293,6 +293,8 @@
     }
 
     function updateSummary(data) {
+        const roundUp = (num) => Math.ceil(num * 100) / 100;
+
         currentData = data;
         const weeks = data.total_weeks_violated || 0;
         const workingDays = data.working_days_per_week || 0;
@@ -305,17 +307,17 @@
         // --- NEW: Waiting Time Penalty Calculations ---
         const penaltyDays = Math.min(data.penalty_days || 0, 30); // Capped at 30 days per CA law
         const dailyRate = rate * data.working_hours; 
-        const totalWtp = penaltyDays * dailyRate;
+        const totalWtp = roundUp(penaltyDays * dailyRate);
 
-        const mTotal = mShifts * rate;
-        const rTotal = rShifts * rate;
+        const mTotal = roundUp(mShifts * rate);
+        const rTotal = roundUp(rShifts * rate);
 
         const schedule = data.pay_period || "Unknown";
         const nViolations = schedule === "weekly" ? weeks : Math.floor(weeks / 2);
         const vTotal = nViolations > 0 ? 100 + ((nViolations - 1) * 200) : 0;
 
-        const pSum = mTotal + rTotal + vTotal;
-        const vPercent = pSum * 0.25;
+        const pSum = mTotal + rTotal;
+        const vPercent = roundUp(pSum * 0.25);
         const wTotal = nViolations > 0 ? 50 + ((nViolations - 1) * 100) : 0;
 
         const finalTotal = mTotal + rTotal + vTotal + vPercent + wTotal + totalWtp;

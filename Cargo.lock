@@ -1128,6 +1128,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
 
 [[package]]
+name = "lmb204wswtp"
+version = "0.1.0"
+dependencies = [
+ "async-openai",
+ "axum",
+ "chrono",
+ "dashmap",
+ "dotenvy",
+ "dotext",
+ "futures-util",
+ "handlebars",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http 0.5.2",
+ "uuid",
+ "zip 0.6.6",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1695,27 +1716,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rust_chappie"
-version = "0.1.0"
-dependencies = [
- "async-openai",
- "axum",
- "chrono",
- "dashmap",
- "dotenvy",
- "dotext",
- "futures-util",
- "handlebars",
- "regex",
- "serde",
- "serde_json",
- "tokio",
- "tower-http 0.5.2",
- "uuid",
- "zip 0.6.6",
 ]
 
 [[package]]
