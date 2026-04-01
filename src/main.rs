@@ -40,7 +40,7 @@ struct RawData {
     #[serde(default)]
     pub rest_violations_per_week: u32,
     pub pay_period: Option<String>,
-    pub demand_amount: Option<serde_json::Value>,
+    pub demand_amount: Option<f64>,
     pub atty_contact_date: Option<String>,
     pub custom_sentence1: Option<String>, 
     pub custom_sentence2: Option<String>,
@@ -76,17 +76,17 @@ async fn main() {
         .with_state(state);
 
     //Local Setup
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("Server running at http://{}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    // println!("Server running at http://{}", addr);
+    // let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    // axum::serve(listener, app).await.unwrap();
 
     //Deploy
-    // let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    // let addr = format!("0.0.0.0:{}", port);
-    // println!("Server listening on {}", addr);
-    // let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    // axum::serve(listener, app).await.unwrap();
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+    println!("Server listening on {}", addr);
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
 
 async fn clear_session_handler(
@@ -159,17 +159,6 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
         "N/A".to_string()
     };
 
-    let demand_str = match &data.demand_amount {
-        Some(val) => {
-            if val.is_number() {
-                val.to_string()
-            } else {
-                val.as_str().unwrap_or("0.00").to_string()
-            }
-        },
-        None => "0.00".to_string(),
-    };
-
     let (title, pronoun, possessive, verb) = match data.gender.to_lowercase().as_str() {
         "male" => ("Mr.", "he", "his", "is"),
         "female" => ("Ms.", "she", "her", "is"),
@@ -203,7 +192,7 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
 
     let wage_total = round_up(if num_violations > 0 { 50.0 + ((num_violations - 1) as f64 * 100.0) } else { 0.0 });
     
-    let total_sum = round_up(penalties_sum + violations_percent + wage_total + total_wtp);
+    let total_sum = round_up(penalties_sum + violations_total + violations_percent + wage_total + total_wtp);
 
     let hb_data = serde_json::json!({
         "title": title,
@@ -236,7 +225,7 @@ async fn generate_handler(Json(data): Json<RawData>) -> Response {
         "total_sum": format!("{:.2}", total_sum),
 
         "atty_contact_date": formatted_atty_date,
-        "demand_amount": demand_str,
+        "demand_amount": format!("{:.2}", data.demand_amount.unwrap_or(0.0) as f64),
 
         "penalty_days": penalty_days,
         "total_per_day": format!("{:.2}", total_per_day),
@@ -303,7 +292,7 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
 
                 Extract the number of days for 'penalty_days' (up to 30) after 'WTP' or 'Waiting Time Penalties' sentence in the file. Example: 'WTP: 10 days'. Return as an INTEGER (number), not a string. Example: 10.
 
-                For demand_amount: Return as string.
+                For demand_amount: Remove any symbols, keep only numbers with decimals if it has them.
                 For atty_contact_date: Format as YYYY-MM-DD.
                 For pay_period: Use 'weekly' or 'biweekly'.
                 
