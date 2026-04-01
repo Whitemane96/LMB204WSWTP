@@ -292,7 +292,7 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
 
                 Extract the number of days for 'penalty_days' (up to 30) after 'WTP' or 'Waiting Time Penalties' sentence in the file. Example: 'WTP: 10 days'. Return as an INTEGER (number), not a string. Example: 10.
 
-                For demand_amount: Remove any symbols, keep only numbers with decimals if it has them.
+                For demand_amount: Remove any symbols, keep only numbers with decimals if it has them, if no decimals, add '.00' at the end. Return as a float.
                 For atty_contact_date: Format as YYYY-MM-DD.
                 For pay_period: Use 'weekly' or 'biweekly'.
                 For working_hours: Extract only the digits, strip all text. If the text says '8-hour shift', return 8 as a number.
