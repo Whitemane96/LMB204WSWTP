@@ -26,10 +26,15 @@ use serde::de::{self, Deserializer};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct RawData {
+    #[serde(default)]
     pub full_name: String,
+    #[serde(default)]
     pub gender: String,
+    #[serde(default)]
     pub company: String,
+    #[serde(default)]
     pub working_hours: u32,
+    #[serde(default)]
     pub pay_rate: f64,
     #[serde(default)]
     pub working_days_per_week: u32,
@@ -39,10 +44,15 @@ struct RawData {
     pub meal_violations_per_week: u32,
     #[serde(default)]
     pub rest_violations_per_week: u32,
+    #[serde(default)]
     pub pay_period: Option<String>,
+    #[serde(default)]
     pub demand_amount: Option<f64>,
+    #[serde(default)]
     pub atty_contact_date: Option<String>,
+    #[serde(default)]
     pub custom_sentence1: Option<String>, 
+    #[serde(default)]
     pub custom_sentence2: Option<String>,
     #[serde(default, deserialize_with = "deserialize_number_from_string")]
     pub penalty_days: Option<u32>
@@ -295,7 +305,7 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
                 For demand_amount: Remove any symbols, keep only numbers with decimals if it has them, if no decimals, add '.00' at the end. Return as a float.
                 For atty_contact_date: Format as YYYY-MM-DD.
                 For pay_period: Use 'weekly' or 'biweekly'.
-                For working_hours: Extract only the digits, strip all text. If the text says '8-hour shift', return 8 as a number.
+                For working_hours: Extract only the digits, strip all text. If the text says '8-hour shift', return 8 as a number. If you don't find anything related, set as integer with the value of 0.
                 For working_days_per_week: Extract only the digits, strip all text. Return as an integer.
                 For pay_rate: Extract only the digits and keep decimals, strip all text and symbols. Return as a float.
                 
@@ -309,7 +319,27 @@ async fn extract_data(input: &str, context: Option<RawData>) -> RawData {
 
     let response = client.chat().create(request).await.expect("OpenAI failed");
     let json_str = response.choices[0].message.content.as_ref().unwrap();
-    serde_json::from_str(json_str).unwrap()
+    serde_json::from_str(json_str).unwrap_or_else(|e| {
+        eprintln!("Failed to parse AI response: {}. JSON was: {}", e, json_str);
+        // Return a completely empty RawData object so the app keeps running
+        RawData {
+            full_name: "Unknown".to_string(),
+            gender: "Unknown".to_string(),
+            company: "Unknown".to_string(),
+            working_hours: 0,
+            pay_rate: 0.0,
+            working_days_per_week: 0,
+            total_weeks_violated: 0,
+            meal_violations_per_week: 0,
+            rest_violations_per_week: 0,
+            pay_period: Some("Unknown".to_string()),
+            demand_amount: Some(0.0),
+            atty_contact_date: Some("Unknown".to_string()),
+            custom_sentence1: Some("".to_string()),
+            custom_sentence2: Some("".to_string()),
+            penalty_days: Some(0),
+        }
+    })
 }
 
 fn read_docx(path: &str) -> String {
